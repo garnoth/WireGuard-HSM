@@ -6,6 +6,7 @@
 package device
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -228,6 +229,7 @@ func (device *Device) IsUnderLoad() bool {
 
 func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	// lock required resources
+	fmt.Printf("Set private key called!\n")
 
 	device.staticIdentity.Lock()
 	defer device.staticIdentity.Unlock()
@@ -250,6 +252,7 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	publicKey := sk.publicKey()
 	for key, peer := range device.peers.keyMap {
 		if peer.handshake.remoteStatic.Equals(publicKey) {
+			fmt.Printf("Found peer with matching public key\n")
 			peer.handshake.mutex.RUnlock()
 			removePeerLocked(device, peer, key)
 			peer.handshake.mutex.RLock()
@@ -268,6 +271,7 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	for _, peer := range device.peers.keyMap {
 		handshake := &peer.handshake
 		handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(handshake.remoteStatic)
+		fmt.Printf("device.go - precomputedStaticStatic: %x\n", handshake.precomputedStaticStatic)
 		expiredPeers = append(expiredPeers, peer)
 	}
 
