@@ -52,6 +52,8 @@ type Device struct {
 		sync.RWMutex
 		privateKey NoisePrivateKey
 		publicKey  NoisePublicKey
+		hsm        pkclient
+		hsmEnabled bool
 	}
 
 	peers struct {
@@ -236,8 +238,10 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	device.staticIdentity.Lock()
 	defer device.staticIdentity.Unlock()
 
-	if sk.Equals(device.staticIdentity.privateKey) {
-		return nil
+	if !device.staticIdentity.hsmEnabled {
+		if sk.Equals(device.staticIdentity.privateKey) {
+			return nil
+		}
 	}
 
 	device.peers.Lock()
@@ -250,8 +254,11 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	}
 
 	// remove peers with matching public keys
-
-	publicKey := sk.publicKey()
+	if device.staticIdentity.hsmEnabled {
+		publicKey := device.staticIdentity.hsm.PublicKey()
+	} else {
+		publicKey := sk.publicKey()
+	}
 	for key, peer := range device.peers.keyMap {
 		if peer.handshake.remoteStatic.Equals(publicKey) {
 			fmt.Printf("Found peer with matching public key\n")
@@ -262,8 +269,8 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	}
 
 	// update key material
-
-	device.staticIdentity.privateKey = sk
+	
+	device.staticIdentity.privateKey = sk // set to nil if HSM is enabled 
 	device.staticIdentity.publicKey = publicKey
 	device.cookieChecker.Init(publicKey)
 
@@ -272,7 +279,11 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	expiredPeers := make([]*Peer, 0, len(device.peers.keyMap))
 	for _, peer := range device.peers.keyMap {
 		handshake := &peer.handshake
-		handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(handshake.remoteStatic)
+		if device.staticIdentity.hsmEnabled {
+			handshake.precomputedStaticStatic = device.staticIdentity.hsm.Derive(handshake.remoteStatic)
+		} else {
+			handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(handshake.remoteStatic)
+		}
 		fmt.Printf("device.go - precomputedStaticStatic: %x\n", handshake.precomputedStaticStatic)
 		expiredPeers = append(expiredPeers, peer)
 	}

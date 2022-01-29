@@ -111,6 +111,14 @@ func (sk *NoisePrivateKey) publicKey() (pk NoisePublicKey) {
 	return
 }
 
+// return the private key from the hsm instead
+func (sk *NoisePrivateKey) publicKey(dev *Device) (pk NoisePublicKey) {
+	if dev.staticIdentity.hsmEnabled {
+		return dev.staticIdentity.hsm.PublicKey()
+	}
+	fmt.Println("THIS SHOULD NOT HAVE BEEN CALLED\n")
+}
+
 func (sk *NoisePrivateKey) sharedSecret(pk NoisePublicKey) (ss [NoisePublicKeySize]byte) {
 	apk := (*[NoisePublicKeySize]byte)(&pk)
 	ask := (*[NoisePrivateKeySize]byte)(sk)

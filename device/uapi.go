@@ -209,11 +209,14 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		// {path to HSM module}, {slot id}, {pin} {//path_to_pubKey/}// }
 		fmt.Printf("Have Options:$s\n",params)
 		//TODO where do we handle this? hsmDev device? In a struct?
-		hsmDev, err : = PkClient.NewPK_Client(params[0], params[1], params[2])
+		hsmDev, err : = PkClient.New(params[0], params[1], params[2])
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "hsm setup failed: %w", err)
 		}
-		device.SetPrivateKey(sk)
+		device.staticIdentity.hsm = hsmDev
+		device.staticIdentity.hsmEnabled = true
+		// call private key with nil so it'll be set to nil 
+		device.SetPrivateKey(nil)
 
 	case "private_key":
 		var sk NoisePrivateKey
