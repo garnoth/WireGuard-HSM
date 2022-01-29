@@ -227,6 +227,8 @@ func (device *Device) IsUnderLoad() bool {
 	return atomic.LoadInt64(&device.rate.underLoadUntil) > now.UnixNano()
 }
 
+//TODO need to decide if I should modify this in order to implement the HSM or if I should
+// copy this function and make my own HSM-aware version? Set Private Key is only called by the config and test scripts
 func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	// lock required resources
 	fmt.Printf("Set private key called!\n")

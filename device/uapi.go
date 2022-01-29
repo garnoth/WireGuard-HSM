@@ -201,6 +201,20 @@ func (device *Device) IpcSetOperation(r io.Reader) (err error) {
 
 func (device *Device) handleDeviceLine(key, value string) error {
 	switch key {
+	
+	case "HSM":
+		params := strings.Split(value, ",")
+		// config line has been defined so for:
+		// maybe down the line we can add options for not requiring the pin, 
+		// {path to HSM module}, {slot id}, {pin} {//path_to_pubKey/}// }
+		fmt.Printf("Have Options:$s\n",params)
+		//TODO where do we handle this? hsmDev device? In a struct?
+		hsmDev, err : = PkClient.NewPK_Client(params[0], params[1], params[2])
+		if err != nil {
+			return ipcErrorf(ipc.IpcErrorInvalid, "hsm setup failed: %w", err)
+		}
+		device.SetPrivateKey(sk)
+
 	case "private_key":
 		var sk NoisePrivateKey
 		err := sk.FromMaybeZeroHex(value)
