@@ -112,11 +112,13 @@ func (sk *NoisePrivateKey) publicKey() (pk NoisePublicKey) {
 }
 
 // return the private key from the hsm instead
-func (sk *NoisePrivateKey) publicKey(dev *Device) (pk NoisePublicKey) {
+func (sk *NoisePrivateKey) publicKeyHSM(dev *Device) (pk NoisePublicKey) {
 	if dev.staticIdentity.hsmEnabled {
-		return dev.staticIdentity.hsm.PublicKey()
+		pk, _ := dev.staticIdentity.hsm.PublicKeyNoise()
+		return pk
 	}
 	fmt.Println("THIS SHOULD NOT HAVE BEEN CALLED\n")
+	return pk
 }
 
 func (sk *NoisePrivateKey) sharedSecret(pk NoisePublicKey) (ss [NoisePublicKeySize]byte) {
@@ -125,4 +127,12 @@ func (sk *NoisePrivateKey) sharedSecret(pk NoisePublicKey) (ss [NoisePublicKeySi
 	curve25519.ScalarMult(&ss, ask, apk)
 	fmt.Printf("priv.sharedSecret() - \n ss: %x\nask: %x\napk: %x\n----------end priv.sharedSecret()-----------------\n", ss, *ask, *apk)
 	return ss
+}
+
+func ByteToNoisePublicKey(input []byte) (pk NoisePublicKey) {
+	if len(input) > NoisePublicKeySize {
+		fmt.Printf("Warning, bad key length input: len of input was: %d\n", len(input))
+	}
+	copy(pk[0:], input[0:])
+	return pk
 }

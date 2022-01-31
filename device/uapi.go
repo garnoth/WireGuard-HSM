@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/garnoth/pkclient"
 	"golang.zx2c4.com/go118/netip"
 	"golang.zx2c4.com/wireguard/ipc"
 )
@@ -201,22 +202,30 @@ func (device *Device) IpcSetOperation(r io.Reader) (err error) {
 
 func (device *Device) handleDeviceLine(key, value string) error {
 	switch key {
-	
+
 	case "HSM":
 		params := strings.Split(value, ",")
 		// config line has been defined so for:
-		// maybe down the line we can add options for not requiring the pin, 
+		// maybe down the line we can add options for not requiring the pin,
 		// {path to HSM module}, {slot id}, {pin} {//path_to_pubKey/}// }
-		fmt.Printf("Have Options:$s\n",params)
+		fmt.Printf("Have Options:%s\n", params)
+
 		//TODO where do we handle this? hsmDev device? In a struct?
-		hsmDev, err : = PkClient.New(params[0], params[1], params[2])
+		slot, err := strconv.Atoi(params[1])
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "hsm setup failed: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "hsm slot setup failed: %w", err)
+		}
+		fmt.Printf("Slot: %d\n", slot)
+		fmt.Printf("Pin: %s\n", params[2])
+		hsmDev, err := pkclient.New(params[0], uint(slot), params[2])
+		if err != nil {
+			return ipcErrorf(ipc.IpcErrorInvalid, "pkclient setup failed: %w", err)
 		}
 		device.staticIdentity.hsm = hsmDev
 		device.staticIdentity.hsmEnabled = true
-		// call private key with nil so it'll be set to nil 
-		device.SetPrivateKey(nil)
+		// call private key with a zero private key
+		var blankPK NoisePrivateKey
+		device.SetPrivateKey(blankPK)
 
 	case "private_key":
 		var sk NoisePrivateKey

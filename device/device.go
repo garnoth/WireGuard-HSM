@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/garnoth/pkclient"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/ratelimiter"
 	"golang.zx2c4.com/wireguard/rwcancel"
@@ -52,7 +53,7 @@ type Device struct {
 		sync.RWMutex
 		privateKey NoisePrivateKey
 		publicKey  NoisePublicKey
-		hsm        pkclient
+		hsm        *pkclient.PKClient
 		hsmEnabled bool
 	}
 
@@ -254,10 +255,12 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	}
 
 	// remove peers with matching public keys
+	var publicKey NoisePublicKey
 	if device.staticIdentity.hsmEnabled {
-		publicKey := device.staticIdentity.hsm.PublicKey()
+		publicKey, _ = device.staticIdentity.hsm.PublicKeyNoise()
+
 	} else {
-		publicKey := sk.publicKey()
+		publicKey = sk.publicKey()
 	}
 	for key, peer := range device.peers.keyMap {
 		if peer.handshake.remoteStatic.Equals(publicKey) {
@@ -269,8 +272,8 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	}
 
 	// update key material
-	
-	device.staticIdentity.privateKey = sk // set to nil if HSM is enabled 
+
+	device.staticIdentity.privateKey = sk // set to nil if HSM is enabled
 	device.staticIdentity.publicKey = publicKey
 	device.cookieChecker.Init(publicKey)
 
@@ -280,7 +283,7 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	for _, peer := range device.peers.keyMap {
 		handshake := &peer.handshake
 		if device.staticIdentity.hsmEnabled {
-			handshake.precomputedStaticStatic = device.staticIdentity.hsm.Derive(handshake.remoteStatic)
+			handshake.precomputedStaticStatic, _ = device.staticIdentity.hsm.DeriveNoise(handshake.remoteStatic)
 		} else {
 			handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(handshake.remoteStatic)
 		}
