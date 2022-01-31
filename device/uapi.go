@@ -208,16 +208,16 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		// config line has been defined so for:
 		// maybe down the line we can add options for not requiring the pin,
 		// {path to HSM module}, {slot id}, {pin} {//path_to_pubKey/}// }
-		fmt.Printf("Have Options:%s\n", params)
+		fmt.Printf("Have path:[%s]\n", params[0])
 
 		//TODO where do we handle this? hsmDev device? In a struct?
 		slot, err := strconv.Atoi(params[1])
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "hsm slot setup failed: %w", err)
 		}
-		fmt.Printf("Slot: %d\n", slot)
-		fmt.Printf("Pin: %s\n", params[2])
-		hsmDev, err := pkclient.New(params[0], uint(slot), params[2])
+		fmt.Printf("Slot: [%d]\n", slot)
+		fmt.Printf("Pin: [%s]\n", params[2])
+		hsmDev, err := pkclient.NewHSM(params[0], uint(slot), params[2])
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "pkclient setup failed: %w", err)
 		}
