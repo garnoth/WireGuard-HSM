@@ -12,5 +12,7 @@ require (
 )
 
 require github.com/miekg/pkcs11 v1.1.1 // indirect
+
 replace github.com/miekg/pkcs11 => ../../pkcs11
+
 replace github.com/garnoth/pkclient => ../pkclient

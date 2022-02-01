@@ -227,6 +227,9 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		var blankPK NoisePrivateKey
 		device.SetPrivateKey(blankPK)
 
+		pubKey := hsmDev.PublicKeyB64()
+		fmt.Printf("Using HSM, got public key: %s\n", pubKey)
+
 	case "private_key":
 		var sk NoisePrivateKey
 		err := sk.FromMaybeZeroHex(value)
