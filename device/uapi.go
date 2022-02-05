@@ -8,6 +8,7 @@ package device
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -86,10 +87,12 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 		defer device.peers.RUnlock()
 
 		// serialize device related values
-
+		fmt.Printf("\n[uapi] checking device StaticPrivKey value: %X\n", device.staticIdentity.privateKey)
 		if !device.staticIdentity.privateKey.IsZero() {
+			fmt.Printf("[uapi.go] !XXX! Found a Zero Key, might need to fix this\n\n")
 			keyf("private_key", (*[32]byte)(&device.staticIdentity.privateKey))
 		}
+		fmt.Printf("after call: %X\n\n", device.staticIdentity.privateKey)
 
 		if device.net.port != 0 {
 			sendf("listen_port=%d", device.net.port)
@@ -202,8 +205,7 @@ func (device *Device) IpcSetOperation(r io.Reader) (err error) {
 
 func (device *Device) handleDeviceLine(key, value string) error {
 	switch key {
-
-	case "HSM":
+	case "hsm":
 		params := strings.Split(value, ",")
 		// config line has been defined so for:
 		// maybe down the line we can add options for not requiring the pin,
@@ -223,12 +225,18 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		}
 		device.staticIdentity.hsm = hsmDev
 		device.staticIdentity.hsmEnabled = true
+
 		// call private key with a zero private key
 		var blankPK NoisePrivateKey
 		device.SetPrivateKey(blankPK)
 
-		pubKey := hsmDev.PublicKeyB64()
-		fmt.Printf("Using HSM, got public key: %s\n", pubKey)
+		pubKeyB64 := hsmDev.PublicKeyB64()
+		fmt.Printf("Using HSM, got public key: \n%s\n", pubKeyB64)
+		test, _ := device.staticIdentity.hsm.PublicKeyNoise()
+		wtf := base64.StdEncoding.EncodeToString(test[:])
+		fmt.Printf("Got PublicKey from HSM :%s\n\n", wtf)
+		wttf, _ := base64.StdEncoding.DecodeString(pubKeyB64)
+		fmt.Printf("Check key :%x\n\n", wttf)
 
 	case "private_key":
 		var sk NoisePrivateKey

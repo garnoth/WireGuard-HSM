@@ -95,21 +95,26 @@ func (sk *NoisePrivateKey) clamp() {
 func newPrivateKey() (sk NoisePrivateKey, err error) {
 	_, err = rand.Read(sk[:])
 	sk.clamp()
-	fmt.Printf("newPrivateKey() - called\n")
+	fmt.Printf("newPrivateKey() - called, returning:\n%X\n", sk)
 	return
 }
 
 // generate the public key from the private key
 // we can handle this in pkclient
 func (sk *NoisePrivateKey) publicKey() (pk NoisePublicKey) {
+	fmt.Printf("publicKey() called against private key:\n%X\n", *sk)
 	apk := (*[NoisePublicKeySize]byte)(&pk)
-	fmt.Printf("apk: %x\n", *apk)
+	fmt.Printf("apk: %X\n", *apk)
 	ask := (*[NoisePrivateKeySize]byte)(sk)
-	fmt.Printf("ask: %x\n", *ask)
+	fmt.Printf("ask: %X\n", *ask)
 	curve25519.ScalarBaseMult(apk, ask)
-	fmt.Printf("()privateKey.publicKey()\napk: %x\nask: %x\n----------end priv.publicKey()-----------------\n", *apk, *ask)
+	fmt.Printf("()privateKey.publicKey()\n")
+	fmt.Printf("apk: %X\nask: %X\n--end priv.publicKey()---\n\n", *apk, *ask)
 	return
 }
+
+// generate the public key from the private key
+// we can handle this in pkclient
 
 // return the private key from the hsm instead
 func (sk *NoisePrivateKey) publicKeyHSM(dev *Device) (pk NoisePublicKey) {
@@ -117,15 +122,16 @@ func (sk *NoisePrivateKey) publicKeyHSM(dev *Device) (pk NoisePublicKey) {
 		pk, _ := dev.staticIdentity.hsm.PublicKeyNoise()
 		return pk
 	}
-	fmt.Println("THIS SHOULD NOT HAVE BEEN CALLED\n")
+	fmt.Println("THIS SHOULD NOT HAVE BEEN CALLED!\n")
 	return pk
 }
 
 func (sk *NoisePrivateKey) sharedSecret(pk NoisePublicKey) (ss [NoisePublicKeySize]byte) {
+	fmt.Printf("[sharedSecret soft-version called]\n")
 	apk := (*[NoisePublicKeySize]byte)(&pk)
 	ask := (*[NoisePrivateKeySize]byte)(sk)
 	curve25519.ScalarMult(&ss, ask, apk)
-	fmt.Printf("priv.sharedSecret() - \n ss: %x\nask: %x\napk: %x\n----------end priv.sharedSecret()-----------------\n", ss, *ask, *apk)
+	fmt.Printf("ss: %X\nask: %X\napk: %X\n-end priv.sharedSecret()-\n\n", ss, *ask, *apk)
 	return ss
 }
 

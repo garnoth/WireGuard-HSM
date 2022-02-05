@@ -6,6 +6,7 @@
 package device
 
 import (
+	"encoding/base64"
 	"fmt"
 	"runtime"
 	"sync"
@@ -230,19 +231,18 @@ func (device *Device) IsUnderLoad() bool {
 	return atomic.LoadInt64(&device.rate.underLoadUntil) > now.UnixNano()
 }
 
-//TODO need to decide if I should modify this in order to implement the HSM or if I should
-// copy this function and make my own HSM-aware version? Set Private Key is only called by the config and test scripts
 func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	// lock required resources
-	fmt.Printf("Set private key called!\n")
+	fmt.Printf("[device.go] SetPrivateKey() called!\n")
+	fmt.Printf("sk: %X\n", sk)
 
 	device.staticIdentity.Lock()
 	defer device.staticIdentity.Unlock()
 
-	if !device.staticIdentity.hsmEnabled {
-		if sk.Equals(device.staticIdentity.privateKey) {
-			return nil
-		}
+	if sk.Equals(device.staticIdentity.privateKey) &&
+		!device.staticIdentity.hsmEnabled {
+		fmt.Println("[AXC] returning nil")
+		return nil
 	}
 
 	device.peers.Lock()
@@ -251,20 +251,27 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	lockedPeers := make([]*Peer, 0, len(device.peers.keyMap))
 	for _, peer := range device.peers.keyMap {
 		peer.handshake.mutex.RLock()
+		fmt.Println("[AXD] appending peer")
 		lockedPeers = append(lockedPeers, peer)
 	}
-
-	// remove peers with matching public keys
 	var publicKey NoisePublicKey
+	// remove peers with matching public keys
 	if device.staticIdentity.hsmEnabled {
-		publicKey, _ = device.staticIdentity.hsm.PublicKeyNoise()
+		pubKeyB64 := device.staticIdentity.hsm.PublicKeyB64()
+		//publicKey, _ = device.staticIdentity.hsm.PublicKeyNoise()
+		wtf := base64.StdEncoding.EncodeToString(publicKey[:])
+		fmt.Printf("Got PublicKey from HSM :%s\n\n", wtf)
+		tempKey, _ := base64.StdEncoding.DecodeString(pubKeyB64)
+		copy(publicKey[:], tempKey)
 
 	} else {
 		publicKey = sk.publicKey()
+		fmt.Printf("Got PublicKey from SOFTWARE\n")
 	}
+
 	for key, peer := range device.peers.keyMap {
 		if peer.handshake.remoteStatic.Equals(publicKey) {
-			fmt.Printf("Found peer with matching public key\n")
+			fmt.Printf("Found peer with matching public key!\n")
 			peer.handshake.mutex.RUnlock()
 			removePeerLocked(device, peer, key)
 			peer.handshake.mutex.RLock()
@@ -273,21 +280,23 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 
 	// update key material
 
-	device.staticIdentity.privateKey = sk // set to nil if HSM is enabled
+	device.staticIdentity.privateKey = sk
 	device.staticIdentity.publicKey = publicKey
 	device.cookieChecker.Init(publicKey)
+	b64sk := base64.StdEncoding.EncodeToString(device.staticIdentity.privateKey[:])
+	b64pk := base64.StdEncoding.EncodeToString(device.staticIdentity.publicKey[:])
+	fmt.Printf("device.staticIdentity.privateKey: %X\n", device.staticIdentity.privateKey)
+	fmt.Printf("device.staticIdentity.privateKey: %s\n", b64sk)
+	fmt.Printf("device.staticIdentity.publicKey: %X\n", device.staticIdentity.publicKey)
+	fmt.Printf("device.staticIdentity.publicKey: %s\n", b64pk)
 
 	// do static-static DH pre-computations
 
 	expiredPeers := make([]*Peer, 0, len(device.peers.keyMap))
 	for _, peer := range device.peers.keyMap {
 		handshake := &peer.handshake
-		if device.staticIdentity.hsmEnabled {
-			handshake.precomputedStaticStatic, _ = device.staticIdentity.hsm.DeriveNoise(handshake.remoteStatic)
-		} else {
-			handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(handshake.remoteStatic)
-		}
-		fmt.Printf("device.go - precomputedStaticStatic: %x\n", handshake.precomputedStaticStatic)
+		handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(handshake.remoteStatic)
+		fmt.Printf("[device.go] - precomputedStaticStatic: %X\n", handshake.precomputedStaticStatic)
 		expiredPeers = append(expiredPeers, peer)
 	}
 
@@ -297,7 +306,7 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	for _, peer := range expiredPeers {
 		peer.ExpireCurrentKeypairs()
 	}
-
+	fmt.Printf("[device.go] end of SetPrivateKey()\n\n")
 	return nil
 }
 
@@ -309,6 +318,7 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device.net.bind = bind
 	device.tun.device = tunDevice
 	mtu, err := device.tun.device.MTU()
+	device.staticIdentity.hsmEnabled = false
 	if err != nil {
 		device.log.Errorf("Trouble determining MTU, assuming default: %v", err)
 		mtu = DefaultMTU
