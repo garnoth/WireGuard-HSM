@@ -6,8 +6,6 @@
 package device
 
 import (
-	"encoding/base64"
-	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -233,15 +231,13 @@ func (device *Device) IsUnderLoad() bool {
 
 func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	// lock required resources
-	fmt.Printf("[device.go] SetPrivateKey() called!\n")
-	fmt.Printf("sk: %X\n", sk)
 
 	device.staticIdentity.Lock()
 	defer device.staticIdentity.Unlock()
 
+	// if the hsm is enabled, let this function continue, since the privateKey is zero
 	if sk.Equals(device.staticIdentity.privateKey) &&
 		!device.staticIdentity.hsmEnabled {
-		fmt.Println("[AXC] returning nil")
 		return nil
 	}
 
@@ -251,27 +247,21 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	lockedPeers := make([]*Peer, 0, len(device.peers.keyMap))
 	for _, peer := range device.peers.keyMap {
 		peer.handshake.mutex.RLock()
-		fmt.Println("[AXD] appending peer")
 		lockedPeers = append(lockedPeers, peer)
 	}
-	var publicKey NoisePublicKey
+
 	// remove peers with matching public keys
+
+	var publicKey NoisePublicKey
 	if device.staticIdentity.hsmEnabled {
-		pubKeyB64 := device.staticIdentity.hsm.PublicKeyB64()
-		//publicKey, _ = device.staticIdentity.hsm.PublicKeyNoise()
-		wtf := base64.StdEncoding.EncodeToString(publicKey[:])
-		fmt.Printf("Got PublicKey from HSM :%s\n\n", wtf)
-		tempKey, _ := base64.StdEncoding.DecodeString(pubKeyB64)
-		copy(publicKey[:], tempKey)
+		publicKey, _ = device.staticIdentity.hsm.PublicKeyNoise()
 
 	} else {
 		publicKey = sk.publicKey()
-		fmt.Printf("Got PublicKey from SOFTWARE\n")
 	}
 
 	for key, peer := range device.peers.keyMap {
 		if peer.handshake.remoteStatic.Equals(publicKey) {
-			fmt.Printf("Found peer with matching public key!\n")
 			peer.handshake.mutex.RUnlock()
 			removePeerLocked(device, peer, key)
 			peer.handshake.mutex.RLock()
@@ -283,12 +273,6 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	device.staticIdentity.privateKey = sk
 	device.staticIdentity.publicKey = publicKey
 	device.cookieChecker.Init(publicKey)
-	b64sk := base64.StdEncoding.EncodeToString(device.staticIdentity.privateKey[:])
-	b64pk := base64.StdEncoding.EncodeToString(device.staticIdentity.publicKey[:])
-	fmt.Printf("device.staticIdentity.privateKey: %X\n", device.staticIdentity.privateKey)
-	fmt.Printf("device.staticIdentity.privateKey: %s\n", b64sk)
-	fmt.Printf("device.staticIdentity.publicKey: %X\n", device.staticIdentity.publicKey)
-	fmt.Printf("device.staticIdentity.publicKey: %s\n", b64pk)
 
 	// do static-static DH pre-computations
 
@@ -296,7 +280,6 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	for _, peer := range device.peers.keyMap {
 		handshake := &peer.handshake
 		handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(handshake.remoteStatic)
-		fmt.Printf("[device.go] - precomputedStaticStatic: %X\n", handshake.precomputedStaticStatic)
 		expiredPeers = append(expiredPeers, peer)
 	}
 
@@ -306,7 +289,7 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	for _, peer := range expiredPeers {
 		peer.ExpireCurrentKeypairs()
 	}
-	fmt.Printf("[device.go] end of SetPrivateKey()\n\n")
+
 	return nil
 }
 
@@ -317,8 +300,8 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device.log = logger
 	device.net.bind = bind
 	device.tun.device = tunDevice
-	mtu, err := device.tun.device.MTU()
 	device.staticIdentity.hsmEnabled = false
+	mtu, err := device.tun.device.MTU()
 	if err != nil {
 		device.log.Errorf("Trouble determining MTU, assuming default: %v", err)
 		mtu = DefaultMTU
@@ -391,7 +374,9 @@ func (device *Device) Close() {
 	}
 	atomic.StoreUint32(&device.state.state, uint32(deviceStateClosed))
 	device.log.Verbosef("Device closing")
-
+	if device.staticIdentity.hsmEnabled {
+		device.staticIdentity.hsm.Close()
+	}
 	device.tun.device.Close()
 	device.downLocked()
 
@@ -446,6 +431,7 @@ func closeBindLocked(device *Device) error {
 		err = netc.bind.Close()
 	}
 	netc.stopping.Wait()
+
 	return err
 }
 

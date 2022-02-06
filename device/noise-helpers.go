@@ -9,7 +9,6 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/subtle"
-	"fmt"
 	"hash"
 
 	"golang.org/x/crypto/blake2s"
@@ -46,7 +45,6 @@ func KDF1(t0 *[blake2s.Size]byte, key, input []byte) {
 }
 
 func KDF2(t0, t1 *[blake2s.Size]byte, key, input []byte) {
-	println("KDF2 called")
 	var prk [blake2s.Size]byte
 	HMAC1(&prk, key, input)
 	HMAC1(t0, prk[:], []byte{0x1})
@@ -55,7 +53,6 @@ func KDF2(t0, t1 *[blake2s.Size]byte, key, input []byte) {
 }
 
 func KDF3(t0, t1, t2 *[blake2s.Size]byte, key, input []byte) {
-	println("KDF3 called")
 	var prk [blake2s.Size]byte
 	HMAC1(&prk, key, input)
 	HMAC1(t0, prk[:], []byte{0x1})
@@ -79,66 +76,27 @@ func setZero(arr []byte) {
 	}
 }
 
-/* I think the confusion comes from thinking that what you supply to
-Curve25519 as the private key is already a scalar value.
-It’s not, it’s a uniformly random key. Curve25519 then applies a surjective mapping
-function (clamping) to this key to derive a suitable scalar value.
-(Essentially, 5 bits of the key are ignored, leaving 2^251 distinct keys).
-It’s not pretty, but it gets the job done and is fast.  */
 func (sk *NoisePrivateKey) clamp() {
 	sk[0] &= 248
 	sk[31] = (sk[31] & 127) | 64
 }
 
-// If the private key is held on the device, can a clamp be performed since it looks
-// like wireguard modifies the private key?
 func newPrivateKey() (sk NoisePrivateKey, err error) {
 	_, err = rand.Read(sk[:])
 	sk.clamp()
-	fmt.Printf("newPrivateKey() - called, returning:\n%X\n", sk)
 	return
 }
 
-// generate the public key from the private key
-// we can handle this in pkclient
 func (sk *NoisePrivateKey) publicKey() (pk NoisePublicKey) {
-	fmt.Printf("publicKey() called against private key:\n%X\n", *sk)
 	apk := (*[NoisePublicKeySize]byte)(&pk)
-	fmt.Printf("apk: %X\n", *apk)
 	ask := (*[NoisePrivateKeySize]byte)(sk)
-	fmt.Printf("ask: %X\n", *ask)
 	curve25519.ScalarBaseMult(apk, ask)
-	fmt.Printf("()privateKey.publicKey()\n")
-	fmt.Printf("apk: %X\nask: %X\n--end priv.publicKey()---\n\n", *apk, *ask)
 	return
-}
-
-// generate the public key from the private key
-// we can handle this in pkclient
-
-// return the private key from the hsm instead
-func (sk *NoisePrivateKey) publicKeyHSM(dev *Device) (pk NoisePublicKey) {
-	if dev.staticIdentity.hsmEnabled {
-		pk, _ := dev.staticIdentity.hsm.PublicKeyNoise()
-		return pk
-	}
-	fmt.Println("THIS SHOULD NOT HAVE BEEN CALLED!\n")
-	return pk
 }
 
 func (sk *NoisePrivateKey) sharedSecret(pk NoisePublicKey) (ss [NoisePublicKeySize]byte) {
-	fmt.Printf("[sharedSecret soft-version called]\n")
 	apk := (*[NoisePublicKeySize]byte)(&pk)
 	ask := (*[NoisePrivateKeySize]byte)(sk)
 	curve25519.ScalarMult(&ss, ask, apk)
-	fmt.Printf("ss: %X\nask: %X\napk: %X\n-end priv.sharedSecret()-\n\n", ss, *ask, *apk)
 	return ss
-}
-
-func ByteToNoisePublicKey(input []byte) (pk NoisePublicKey) {
-	if len(input) > NoisePublicKeySize {
-		fmt.Printf("Warning, bad key length input: len of input was: %d\n", len(input))
-	}
-	copy(pk[0:], input[0:])
-	return pk
 }

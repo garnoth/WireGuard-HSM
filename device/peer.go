@@ -7,9 +7,7 @@ package device
 
 import (
 	"container/list"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -69,7 +67,7 @@ func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
 	if device.isClosed() {
 		return nil, errors.New("device closed")
 	}
-	fmt.Println("[peer.go] NewPeer called")
+
 	// lock resources
 	device.staticIdentity.RLock()
 	defer device.staticIdentity.RUnlock()
@@ -100,16 +98,14 @@ func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
 	}
 
 	// pre-compute DH
+
 	handshake := &peer.handshake
 	handshake.mutex.Lock()
 	if device.staticIdentity.hsmEnabled {
 		handshake.precomputedStaticStatic, _ = device.staticIdentity.hsm.DeriveNoise(pk)
-		fmt.Println("Used HSM to derive precomputedStaticStatic")
 	} else {
 		handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(pk)
 	}
-	b64sk := base64.StdEncoding.EncodeToString(handshake.precomputedStaticStatic[:])
-	fmt.Printf("handshake.precomputedStaticStatic: %X\n%s\n", handshake.precomputedStaticStatic, b64sk)
 	handshake.remoteStatic = pk
 	handshake.mutex.Unlock()
 
@@ -121,7 +117,7 @@ func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
 
 	// add
 	device.peers.keyMap[pk] = peer
-	fmt.Println("[peer.go] NewPeer done")
+
 	return peer, nil
 }
 
