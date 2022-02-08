@@ -300,7 +300,6 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device.log = logger
 	device.net.bind = bind
 	device.tun.device = tunDevice
-	device.staticIdentity.hsmEnabled = false
 	mtu, err := device.tun.device.MTU()
 	if err != nil {
 		device.log.Errorf("Trouble determining MTU, assuming default: %v", err)
