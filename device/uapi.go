@@ -207,15 +207,16 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		// config line has been defined so for:
 		// Example config file syntax:
 		// hsm {path to HSM module}, {slot id}, {pin}
+		// hsm {path to HSM module}, {slot id}, // omit pin to prompt user
 
 		slot, err := strconv.Atoi(params[1])
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "hsm slot invalid: %w", err)
 		}
-		device.log.Verbosef("UAPI: hsm library path:", params[0])
-		device.log.Verbosef("UAPI: hsm slot:", params[1])
+		device.log.Verbosef("UAPI: hsm library path:%s", params[0])
+		device.log.Verbosef("UAPI: hsm slot:%s", params[1])
 		var hsmDevice *pkclient.PKClient
-		if params[2] == "-1" { // pin not saved, get directly from user input
+		if len(params) < 3 || params[2] == "" { // pin not saved, get directly from user input
 
 			device.log.Verbosef("UAPI: Attempting to get pin from user")
 			hsmDevice, err = pkclient.New_AskPin(params[0], uint(slot))
