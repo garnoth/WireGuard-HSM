@@ -8,6 +8,7 @@ package device
 import (
 	"container/list"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -101,10 +102,19 @@ func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
 
 	handshake := &peer.handshake
 	handshake.mutex.Lock()
+	start := time.Now()
 	if device.staticIdentity.hsmEnabled {
 		handshake.precomputedStaticStatic, _ = device.staticIdentity.hsm.DeriveNoise(pk)
+		defer func(start time.Time) {
+			dur := time.Since(start)
+			fmt.Printf("HSM peer sharedSecret f() took %f to execute", dur.Seconds())
+		}(start)
 	} else {
 		handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(pk)
+		defer func(start time.Time) {
+			dur := time.Since(start)
+			fmt.Printf("Software peer sharedSecret f() took %f to execute", dur.Seconds())
+		}(start)
 	}
 	handshake.remoteStatic = pk
 	handshake.mutex.Unlock()

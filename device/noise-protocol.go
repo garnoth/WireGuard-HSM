@@ -468,10 +468,19 @@ func (device *Device) ConsumeMessageResponse(msg *MessageResponse) *Peer {
 
 		func() {
 			var ss [NoisePrivateKeySize]byte
+			start := time.Now()
 			if device.staticIdentity.hsmEnabled {
 				ss, _ = device.staticIdentity.hsm.DeriveNoise(msg.Ephemeral)
+				defer func(start time.Time) {
+					dur := time.Since(start)
+					fmt.Printf("HSM sharedSecret f() took %f to execute", dur.Seconds())
+				}(start)
 			} else {
 				ss = device.staticIdentity.privateKey.sharedSecret(msg.Ephemeral)
+				defer func(start time.Time) {
+					dur := time.Since(start)
+					fmt.Printf("Software sharedSecret f() took %f to execute", dur.Seconds())
+				}(start)
 			}
 			mixKey(&chainKey, &chainKey, ss[:])
 			setZero(ss[:])
