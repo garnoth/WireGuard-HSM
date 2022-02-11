@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -91,7 +90,6 @@ func (peer *Peer) SendKeepalive() {
 }
 
 func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
-	fmt.Printf("Send HandshakeInititation called: \n")
 	if !isRetry {
 		atomic.StoreUint32(&peer.timers.handshakeAttempts, 0)
 	}
@@ -115,14 +113,13 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 
 	msg, err := peer.device.CreateMessageInitiation(peer)
 	if err != nil {
-		peer.device.log.Errorf("%v - Failed to create initiation message: %+v", peer, err)
+		peer.device.log.Errorf("%v - Failed to create initiation message: %v", peer, err)
 		return err
 	}
 
 	var buff [MessageInitiationSize]byte
 	writer := bytes.NewBuffer(buff[:0])
 	binary.Write(writer, binary.LittleEndian, msg)
-	fmt.Printf("SendHandShakeInit \nmsg before cookie\nmsg ephm\t: %x\nmsg static\t: %x\nmsg Timestap: %x\nmsg MAC1\t: %x\nmsg MAC2:\t%x\n", msg.Ephemeral, msg.Static, msg.Timestamp, msg.MAC1, msg.MAC2)
 	packet := writer.Bytes()
 	peer.cookieGenerator.AddMacs(packet)
 
@@ -150,7 +147,7 @@ func (peer *Peer) SendHandshakeResponse() error {
 		peer.device.log.Errorf("%v - Failed to create response message: %v", peer, err)
 		return err
 	}
-	fmt.Printf("SendHandShakeResp - msg response: %+v\n", response)
+
 	var buff [MessageResponseSize]byte
 	writer := bytes.NewBuffer(buff[:0])
 	binary.Write(writer, binary.LittleEndian, response)

@@ -8,7 +8,6 @@ package device
 import (
 	"bufio"
 	"bytes"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -87,12 +86,10 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 		defer device.peers.RUnlock()
 
 		// serialize device related values
-		fmt.Printf("\n[uapi] checking device StaticPrivKey value: %X\n", device.staticIdentity.privateKey)
+
 		if !device.staticIdentity.privateKey.IsZero() {
-			fmt.Printf("[uapi.go] !XXX! Found a Zero Key, might need to fix this\n\n")
 			keyf("private_key", (*[32]byte)(&device.staticIdentity.privateKey))
 		}
-		fmt.Printf("after call: %X\n\n", device.staticIdentity.privateKey)
 
 		if device.net.port != 0 {
 			sendf("listen_port=%d", device.net.port)
@@ -207,36 +204,40 @@ func (device *Device) handleDeviceLine(key, value string) error {
 	switch key {
 	case "hsm":
 		params := strings.Split(value, ",")
-		// config line has been defined so for:
-		// maybe down the line we can add options for not requiring the pin,
-		// {path to HSM module}, {slot id}, {pin} {//path_to_pubKey/}// }
-		fmt.Printf("Have path:[%s]\n", params[0])
+		// Example config file syntax:
+		// hsm {path to HSM module}, {slot id}, {pin}
+		// hsm {path to HSM module}, {slot id}  // omit pin to prompt user
 
-		//TODO where do we handle this? hsmDev device? In a struct?
 		slot, err := strconv.Atoi(params[1])
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "hsm slot setup failed: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "hsm slot invalid: %w", err)
 		}
-		fmt.Printf("Slot: [%d]\n", slot)
-		fmt.Printf("Pin: [%s]\n", params[2])
-		hsmDev, err := pkclient.NewHSM(params[0], uint(slot), params[2])
-		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "pkclient setup failed: %w", err)
+		device.log.Verbosef("UAPI: hsm library path:%s", params[0])
+		device.log.Verbosef("UAPI: hsm slot:%s", params[1])
+		var hsmDevice *pkclient.PKClient
+		if len(params) < 3 || params[2] == "" { // pin not saved, get directly from user input
+
+			device.log.Verbosef("UAPI: Attempting to get pin from user")
+			hsmDevice, err = pkclient.New_AskPin(params[0], uint(slot))
+			if err != nil {
+				return ipcErrorf(ipc.IpcErrorInvalid, "hsm setup failed: %w", err)
+			}
+		} else { // pin supplied in config file
+
+			device.log.Verbosef("UAPI: Reading pin from config file")
+			hsmDevice, err = pkclient.New(params[0], uint(slot), params[2])
+			if err != nil {
+				return ipcErrorf(ipc.IpcErrorInvalid, "hsm setup failed: %w", err)
+			}
 		}
-		device.staticIdentity.hsm = hsmDev
+
+		fmt.Printf("HSM loaded, found public key: %s\n", hsmDevice.PublicKeyB64())
+		device.staticIdentity.hsm = hsmDevice
 		device.staticIdentity.hsmEnabled = true
 
-		// call private key with a zero private key
+		// call private key with an all zeros private key
 		var blankPK NoisePrivateKey
 		device.SetPrivateKey(blankPK)
-
-		pubKeyB64 := hsmDev.PublicKeyB64()
-		fmt.Printf("Using HSM, got public key: \n%s\n", pubKeyB64)
-		test, _ := device.staticIdentity.hsm.PublicKeyNoise()
-		wtf := base64.StdEncoding.EncodeToString(test[:])
-		fmt.Printf("Got PublicKey from HSM :%s\n\n", wtf)
-		wttf, _ := base64.StdEncoding.DecodeString(pubKeyB64)
-		fmt.Printf("Check key :%x\n\n", wttf)
 
 	case "private_key":
 		var sk NoisePrivateKey
@@ -334,7 +335,6 @@ func (device *Device) handlePublicKeyLine(peer *ipcSetPeer, value string) error 
 
 	peer.created = peer.Peer == nil
 	if peer.created {
-		fmt.Println("UAPI adding new peer")
 		peer.Peer, err = device.NewPeer(publicKey)
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to create new peer: %w", err)

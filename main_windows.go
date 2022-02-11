@@ -47,6 +47,7 @@ func main() {
 		logger.Errorf("Failed to create TUN device: %v", err)
 		os.Exit(ExitSetupFailed)
 	}
+
 	device := device.NewDevice(tun, conn.NewDefaultBind(), logger)
 	err = device.Up()
 	if err != nil {
