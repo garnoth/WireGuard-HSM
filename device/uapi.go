@@ -204,10 +204,9 @@ func (device *Device) handleDeviceLine(key, value string) error {
 	switch key {
 	case "hsm":
 		params := strings.Split(value, ",")
-		// config line has been defined so for:
 		// Example config file syntax:
 		// hsm {path to HSM module}, {slot id}, {pin}
-		// hsm {path to HSM module}, {slot id}, // omit pin to prompt user
+		// hsm {path to HSM module}, {slot id}  // omit pin to prompt user
 
 		slot, err := strconv.Atoi(params[1])
 		if err != nil {
@@ -231,6 +230,8 @@ func (device *Device) handleDeviceLine(key, value string) error {
 				return ipcErrorf(ipc.IpcErrorInvalid, "hsm setup failed: %w", err)
 			}
 		}
+
+		fmt.Printf("HSM loaded, found public key: %s\n", hsmDevice.PublicKeyB64())
 		device.staticIdentity.hsm = hsmDevice
 		device.staticIdentity.hsmEnabled = true
 

@@ -1,11 +1,25 @@
 # Go Implementation of [WireGuard](https://www.wireguard.com/)
 
-This is an implementation of WireGuard in Go.
+This is a modification to the wireguard-go implementation to enable the use of an HSM with wireguard.
+
+# background
+
+This project modifies the staticidentity for a 'private key' to enable it to use an hsm when sharedsecret operation is called. 
+This enables moving the ecdh key derivation function to the connected hsm instead of software.
+
+In the HSM mode, wireguard and the whole operating system doesn't have direct access to the private key, the key is safely stored on the hsm.
+
+## module diagarm
+
+![Image](wg1.drawio.png "wg1.drawio.png")
+
+## impact
+
+	I will add performance numbers here 
 
 ## Usage
 
-Most Linux kernel WireGuard users are used to adding an interface with `ip link add wg0 type wireguard`. With wireguard-go, instead simply run:
-
+The only implementation currently is in go, there isn't a kernel implementation of this work yet.
 ```
 $ wireguard-go wg0
 ```
