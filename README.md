@@ -14,8 +14,10 @@ In the HSM mode, wireguard and the whole operating system doesn't have direct ac
 ![Image](wg1.drawio.png "wg1.drawio.png")
 
 ## impact
+Benchmarking the sharedSecret function in software vs the HSM shows an added delay of around 73ms
 
-	I will add performance numbers here 
+	HSM avg time in ms:      74.663
+	Software avg time in ms: 1.823
 
 ## Usage
 
