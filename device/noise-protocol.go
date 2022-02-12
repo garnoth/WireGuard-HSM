@@ -8,6 +8,8 @@ package device
 import (
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -426,7 +428,11 @@ func (device *Device) ConsumeMessageResponse(msg *MessageResponse) *Peer {
 	if msg.Type != MessageResponseType {
 		return nil
 	}
-
+	f, err := os.OpenFile("Devicelog.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	log.SetOutput(f)
 	// lookup handshake by receiver
 
 	lookup := device.indexTable.Lookup(msg.Receiver)
@@ -473,13 +479,13 @@ func (device *Device) ConsumeMessageResponse(msg *MessageResponse) *Peer {
 				ss, _ = device.staticIdentity.hsm.DeriveNoise(msg.Ephemeral)
 				defer func(start time.Time) {
 					dur := time.Since(start)
-					fmt.Printf("HSM sharedSecret f() took %f to execute", dur.Seconds())
+					log.Printf("HSM sharedSecret f() took %f to execute\n", dur.Seconds())
 				}(start)
 			} else {
 				ss = device.staticIdentity.privateKey.sharedSecret(msg.Ephemeral)
 				defer func(start time.Time) {
 					dur := time.Since(start)
-					fmt.Printf("Software sharedSecret f() took %f to execute", dur.Seconds())
+					log.Printf("Software sharedSecret f() took %f to execute\n", dur.Seconds())
 				}(start)
 			}
 			mixKey(&chainKey, &chainKey, ss[:])

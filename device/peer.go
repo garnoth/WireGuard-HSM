@@ -8,7 +8,8 @@ package device
 import (
 	"container/list"
 	"errors"
-	"fmt"
+	"log"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -65,6 +66,11 @@ type Peer struct {
 }
 
 func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
+	f, err := os.OpenFile("peerlogfile.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	log.SetOutput(f)
 	if device.isClosed() {
 		return nil, errors.New("device closed")
 	}
@@ -107,13 +113,13 @@ func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
 		handshake.precomputedStaticStatic, _ = device.staticIdentity.hsm.DeriveNoise(pk)
 		defer func(start time.Time) {
 			dur := time.Since(start)
-			fmt.Printf("HSM peer sharedSecret f() took %f to execute", dur.Seconds())
+			log.Printf("HSM peer sharedSecret f() took %f to execute\n", dur.Seconds())
 		}(start)
 	} else {
 		handshake.precomputedStaticStatic = device.staticIdentity.privateKey.sharedSecret(pk)
 		defer func(start time.Time) {
 			dur := time.Since(start)
-			fmt.Printf("Software peer sharedSecret f() took %f to execute", dur.Seconds())
+			log.Printf("Software peer sharedSecret f() took %f to execute\n", dur.Seconds())
 		}(start)
 	}
 	handshake.remoteStatic = pk
