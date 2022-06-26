@@ -16,6 +16,6 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 )
 
-replace github.com/miekg/pkcs11 => ../pkcs11
+replace github.com/miekg/pkcs11 => /home/chill/pkcs11
 
 replace github.com/garnoth/pkclient => ../pkclient

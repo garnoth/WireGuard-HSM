@@ -9,7 +9,10 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/subtle"
+	"fmt"
 	"hash"
+	"runtime"
+	"time"
 
 	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/curve25519"
@@ -95,8 +98,20 @@ func (sk *NoisePrivateKey) publicKey() (pk NoisePublicKey) {
 }
 
 func (sk *NoisePrivateKey) sharedSecret(pk NoisePublicKey) (ss [NoisePublicKeySize]byte) {
+	_, file, no, ok := runtime.Caller(1)
+	if ok {
+		fmt.Printf("called from %s#%d\n", file, no)
+	}
+	fmt.Printf("sharedSecret called with Peer pubkey: %X:\n", pk)
+	fmt.Printf("using sk: %X:\n", *sk)
+	start := time.Now()
+	defer func(start time.Time) {
+		dur := time.Since(start)
+		fmt.Printf("Software sharedSecret f() took %f to execute\n", dur.Seconds())
+	}(start)
 	apk := (*[NoisePublicKeySize]byte)(&pk)
 	ask := (*[NoisePrivateKeySize]byte)(sk)
 	curve25519.ScalarMult(&ss, ask, apk)
+	fmt.Printf("returning: %X:\n", ss)
 	return ss
 }
