@@ -19,11 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/garnoth/pkclient"
-	"golang.zx2c4.com/go118/netip"
-=======
->>>>>>> 6a08d81f6bc465a2276c61093d96e567d00beb24
 	"golang.zx2c4.com/wireguard/ipc"
 )
 
