@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT
  *
- * Copyright (C) 2017-2021 WireGuard LLC. All Rights Reserved.
+ * Copyright (C) 2017-2022 WireGuard LLC. All Rights Reserved.
  */
 
 package device
@@ -31,7 +31,7 @@ type Device struct {
 		// will become the actual state; Up can fail.
 		// The device can also change state multiple times between time of check and time of use.
 		// Unsynchronized uses of state must therefore be advisory/best-effort only.
-		state uint32 // actually a deviceState, but typed uint32 for convenience
+		state atomic.Uint32 // actually a deviceState, but typed uint32 for convenience
 		// stopping blocks until all inputs to Device have been closed.
 		stopping sync.WaitGroup
 		// mu protects state changes.
@@ -61,9 +61,8 @@ type Device struct {
 		keyMap       map[NoisePublicKey]*Peer
 	}
 
-	// Keep this 8-byte aligned
 	rate struct {
-		underLoadUntil int64
+		underLoadUntil atomic.Int64
 		limiter        ratelimiter.Ratelimiter
 	}
 
@@ -85,7 +84,7 @@ type Device struct {
 
 	tun struct {
 		device tun.Device
-		mtu    int32
+		mtu    atomic.Int32
 	}
 
 	ipcMutex sync.RWMutex
@@ -97,10 +96,9 @@ type Device struct {
 // There are three states: down, up, closed.
 // Transitions:
 //
-//   down -----+
-//     ↑↓      ↓
-//     up -> closed
-//
+//	down -----+
+//	  ↑↓      ↓
+//	  up -> closed
 type deviceState uint32
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type deviceState -trimprefix=deviceState
@@ -113,7 +111,7 @@ const (
 // deviceState returns device.state.state as a deviceState
 // See those docs for how to interpret this value.
 func (device *Device) deviceState() deviceState {
-	return deviceState(atomic.LoadUint32(&device.state.state))
+	return deviceState(device.state.state.Load())
 }
 
 // isClosed reports whether the device is closed (or is closing).
@@ -152,14 +150,14 @@ func (device *Device) changeState(want deviceState) (err error) {
 	case old:
 		return nil
 	case deviceStateUp:
-		atomic.StoreUint32(&device.state.state, uint32(deviceStateUp))
+		device.state.state.Store(uint32(deviceStateUp))
 		err = device.upLocked()
 		if err == nil {
 			break
 		}
 		fallthrough // up failed; bring the device all the way back down
 	case deviceStateDown:
-		atomic.StoreUint32(&device.state.state, uint32(deviceStateDown))
+		device.state.state.Store(uint32(deviceStateDown))
 		errDown := device.downLocked()
 		if err == nil {
 			err = errDown
@@ -185,7 +183,7 @@ func (device *Device) upLocked() error {
 	device.peers.RLock()
 	for _, peer := range device.peers.keyMap {
 		peer.Start()
-		if atomic.LoadUint32(&peer.persistentKeepaliveInterval) > 0 {
+		if peer.persistentKeepaliveInterval.Load() > 0 {
 			peer.SendKeepalive()
 		}
 	}
@@ -222,11 +220,11 @@ func (device *Device) IsUnderLoad() bool {
 	now := time.Now()
 	underLoad := len(device.queue.handshake.c) >= QueueHandshakeSize/8
 	if underLoad {
-		atomic.StoreInt64(&device.rate.underLoadUntil, now.Add(UnderLoadAfterTime).UnixNano())
+		device.rate.underLoadUntil.Store(now.Add(UnderLoadAfterTime).UnixNano())
 		return true
 	}
 	// check if recently under load
-	return atomic.LoadInt64(&device.rate.underLoadUntil) > now.UnixNano()
+	return device.rate.underLoadUntil.Load() > now.UnixNano()
 }
 
 func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
@@ -295,7 +293,7 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 
 func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device := new(Device)
-	device.state.state = uint32(deviceStateDown)
+	device.state.state.Store(uint32(deviceStateDown))
 	device.closed = make(chan struct{})
 	device.log = logger
 	device.net.bind = bind
@@ -305,7 +303,7 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 		device.log.Errorf("Trouble determining MTU, assuming default: %v", err)
 		mtu = DefaultMTU
 	}
-	device.tun.mtu = int32(mtu)
+	device.tun.mtu.Store(int32(mtu))
 	device.peers.keyMap = make(map[NoisePublicKey]*Peer)
 	device.rate.limiter.Init()
 	device.indexTable.Init()
@@ -371,7 +369,7 @@ func (device *Device) Close() {
 	if device.isClosed() {
 		return
 	}
-	atomic.StoreUint32(&device.state.state, uint32(deviceStateClosed))
+	device.state.state.Store(uint32(deviceStateClosed))
 	device.log.Verbosef("Device closing")
 	if device.staticIdentity.hsmEnabled {
 		device.staticIdentity.hsm.Close()
