@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT
  *
- * Copyright (C) 2017-2021 WireGuard LLC. All Rights Reserved.
+ * Copyright (C) 2017-2022 WireGuard LLC. All Rights Reserved.
  */
 
 package device
@@ -148,7 +148,7 @@ func TestNoiseHandshake(t *testing.T) {
 		t.Fatal("failed to derive keypair for peer 2", err)
 	}
 
-	key1 := peer1.keypairs.loadNext()
+	key1 := peer1.keypairs.next.Load()
 	key2 := peer2.keypairs.current
 
 	// encrypting / decryption test

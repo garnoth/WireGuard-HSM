@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT
  *
- * Copyright (C) 2017-2021 WireGuard LLC. All Rights Reserved.
+ * Copyright (C) 2017-2022 WireGuard LLC. All Rights Reserved.
  */
 
 package device
@@ -287,7 +287,7 @@ func (device *Device) ConsumeMessageInitiation(msg *MessageInitiation) *Peer {
 	// lookup peer
 
 	peer := device.LookupPeer(peerPK)
-	if peer == nil || !peer.isRunning.Get() {
+	if peer == nil || !peer.isRunning.Load() {
 		return nil
 	}
 
@@ -591,12 +591,12 @@ func (peer *Peer) BeginSymmetricSession() error {
 	defer keypairs.Unlock()
 
 	previous := keypairs.previous
-	next := keypairs.loadNext()
+	next := keypairs.next.Load()
 	current := keypairs.current
 
 	if isInitiator {
 		if next != nil {
-			keypairs.storeNext(nil)
+			keypairs.next.Store(nil)
 			keypairs.previous = next
 			device.DeleteKeypair(current)
 		} else {
@@ -605,7 +605,7 @@ func (peer *Peer) BeginSymmetricSession() error {
 		device.DeleteKeypair(previous)
 		keypairs.current = keypair
 	} else {
-		keypairs.storeNext(keypair)
+		keypairs.next.Store(keypair)
 		device.DeleteKeypair(next)
 		keypairs.previous = nil
 		device.DeleteKeypair(previous)
@@ -617,18 +617,18 @@ func (peer *Peer) BeginSymmetricSession() error {
 func (peer *Peer) ReceivedWithKeypair(receivedKeypair *Keypair) bool {
 	keypairs := &peer.keypairs
 
-	if keypairs.loadNext() != receivedKeypair {
+	if keypairs.next.Load() != receivedKeypair {
 		return false
 	}
 	keypairs.Lock()
 	defer keypairs.Unlock()
-	if keypairs.loadNext() != receivedKeypair {
+	if keypairs.next.Load() != receivedKeypair {
 		return false
 	}
 	old := keypairs.previous
 	keypairs.previous = keypairs.current
 	peer.device.DeleteKeypair(old)
-	keypairs.current = keypairs.loadNext()
-	keypairs.storeNext(nil)
+	keypairs.current = keypairs.next.Load()
+	keypairs.next.Store(nil)
 	return true
 }
