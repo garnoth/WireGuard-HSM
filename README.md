@@ -5,7 +5,7 @@ This is a modification to the wireguard-go implementation to enable the use of a
 # background
 
 This project modifies the staticidentity for a 'private key' to enable it to use an hsm when sharedsecret operation is called. 
-This enables moving the ecdh key derivation function to the connected hsm instead of software.
+This enables moving the ECDH key derivation function to an HSM instead of perform on the computer in software.
 
 In the HSM mode, wireguard and the whole operating system doesn't have direct access to the private key, the key is safely stored on the hsm.
 
